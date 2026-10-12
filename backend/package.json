@@ -1,0 +1,25 @@
+{
+  "name": "elms-backend",
+  "version": "1.0.0",
+  "description": "E-Learning Management System Backend with PostgreSQL and Express.js",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "db:schema": "node database/run-sql.js database/schema.sql",
+    "db:seed": "node database/seed.js",
+    "test": "node tests/test_enrollment_keys.js"
+  },
+  "keywords": ["lms", "elearning", "express", "postgresql", "pg"],
+  "author": "Ashwita Pawar & Riddhi Prabhudesai",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.11.5"
+  }
+}
