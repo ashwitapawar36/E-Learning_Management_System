@@ -41,7 +41,7 @@ const enrollStudent = async (studentId, courseId, enrollmentKey = null) => {
     // 1. Verify course exists, is published, and inspect capacity, deadline & key requirements
     const courseRes = await client.query(
       `SELECT id, title, instructor_id, status, max_capacity, enrollment_deadline,
-              requires_enrollment_key, enrollment_key_hash 
+              requires_enrollment_key, enrollment_key, enrollment_key_hash 
        FROM courses 
        WHERE id = $1`,
       [courseId]
@@ -69,9 +69,14 @@ const enrollStudent = async (studentId, courseId, enrollmentKey = null) => {
         throw err;
       }
 
-      const isMatch = course.enrollment_key_hash
-        ? await bcrypt.compare(enrollmentKey.trim(), course.enrollment_key_hash)
-        : false;
+      const inputKey = enrollmentKey.trim();
+      let isMatch = false;
+
+      if (course.enrollment_key && (inputKey === course.enrollment_key || inputKey.toUpperCase() === course.enrollment_key.toUpperCase())) {
+        isMatch = true;
+      } else if (course.enrollment_key_hash) {
+        isMatch = await bcrypt.compare(inputKey, course.enrollment_key_hash);
+      }
 
       if (!isMatch) {
         recordFailedAttempt(rateLimitKey);

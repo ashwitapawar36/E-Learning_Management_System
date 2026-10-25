@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 260" width="100%" height="100%">
+  <defs>
+    <pattern id="purple-diamonds" width="60" height="60" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="30" height="30" fill="#7e57c2" />
+      <rect x="30" width="30" height="30" fill="#9575cd" />
+      <rect y="30" width="30" height="30" fill="#b39ddb" />
+      <rect x="30" y="30" width="30" height="30" fill="#5e35b1" />
+    </pattern>
+    <linearGradient id="purple-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#512da8" stop-opacity="0.75" />
+      <stop offset="100%" stop-color="#d1c4e9" stop-opacity="0.55" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="260" fill="#673ab7" />
+  <rect width="800" height="260" fill="url(#purple-diamonds)" opacity="0.8" />
+  <rect width="800" height="260" fill="url(#purple-grad)" opacity="0.4" />
+</svg>

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 260" width="100%" height="100%">
+  <defs>
+    <pattern id="gold-triangles" width="80" height="80" patternUnits="userSpaceOnUse">
+      <polygon points="0,0 80,0 40,40" fill="#ffb300" />
+      <polygon points="0,0 40,40 0,80" fill="#ffa000" />
+      <polygon points="80,0 80,80 40,40" fill="#ffc107" />
+      <polygon points="0,80 80,80 40,40" fill="#ffd54f" />
+    </pattern>
+    <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff8f00" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#ffe082" stop-opacity="0.4" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="260" fill="#ffb300" />
+  <rect width="800" height="260" fill="url(#gold-triangles)" opacity="0.9" />
+  <rect width="800" height="260" fill="url(#gold-grad)" />
+</svg>

@@ -19,8 +19,7 @@ const getAllCourses = async (req, res, next) => {
 const getCourseById = async (req, res, next) => {
   try {
     const courseId = parseInt(req.params.id, 10);
-    const studentId = req.user ? req.user.id : null;
-    const course = await courseService.getCourseById(courseId, studentId);
+    const course = await courseService.getCourseById(courseId, req.user);
     res.status(200).json({
       success: true,
       data: course
@@ -186,6 +185,33 @@ const getCourseProgress = async (req, res, next) => {
   }
 };
 
+const getCourseEnrollmentKey = async (req, res, next) => {
+  try {
+    const courseId = parseInt(req.params.id, 10);
+    const keyData = await courseService.getCourseEnrollmentKey(courseId, req.user.id, req.user.role);
+    res.status(200).json({
+      success: true,
+      data: keyData
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const regenerateCourseEnrollmentKey = async (req, res, next) => {
+  try {
+    const courseId = parseInt(req.params.id, 10);
+    const keyData = await courseService.regenerateCourseEnrollmentKey(courseId, req.user.id, req.user.role);
+    res.status(200).json({
+      success: true,
+      message: 'Enrollment key regenerated successfully.',
+      data: keyData
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAllCourses,
   getCourseById,
@@ -194,6 +220,8 @@ module.exports = {
   updateCourse,
   updateEnrollmentSettings,
   deleteCourse,
-  getCourseProgress
+  getCourseProgress,
+  getCourseEnrollmentKey,
+  regenerateCourseEnrollmentKey
 };
 

@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
+const { generateSecureEnrollmentKey } = require('../utils/keyGenerator');
 
 const getAllCourses = async ({ search, category, status = 'published', studentId = null }) => {
   let query = `
@@ -48,12 +49,24 @@ const getAllCourses = async ({ search, category, status = 'published', studentId
   return result.rows;
 };
 
-const getCourseById = async (courseId, studentId = null) => {
+const getCourseById = async (courseId, requestingUser = null) => {
+  let studentId = null;
+  let isOwnerOrAdmin = false;
+
+  if (requestingUser) {
+    if (typeof requestingUser === 'object') {
+      studentId = requestingUser.id;
+      isOwnerOrAdmin = requestingUser.role === 'admin';
+    } else {
+      studentId = requestingUser;
+    }
+  }
+
   // 1. Get Course Info & Instructor (Never expose enrollment_key_hash)
   const courseQuery = `
     SELECT 
       c.id, c.title, c.description, c.instructor_id, c.category, c.thumbnail_url, c.status, c.created_at,
-      c.max_capacity, c.enrollment_deadline, c.requires_enrollment_key,
+      c.max_capacity, c.enrollment_deadline, c.requires_enrollment_key, c.enrollment_key,
       (c.enrollment_key_hash IS NOT NULL) AS has_enrollment_key,
       u.name AS instructor_name, u.email AS instructor_email, u.bio AS instructor_bio,
       COUNT(DISTINCT e.id)::int AS enrolled_students_count
@@ -72,6 +85,17 @@ const getCourseById = async (courseId, studentId = null) => {
   }
 
   const course = courseRes.rows[0];
+
+  if (requestingUser && typeof requestingUser === 'object') {
+    if (requestingUser.role === 'admin' || course.instructor_id === requestingUser.id) {
+      isOwnerOrAdmin = true;
+    }
+  }
+
+  // Never expose enrollment_key or key hash to students or public unauthenticated users
+  if (!isOwnerOrAdmin) {
+    delete course.enrollment_key;
+  }
 
   // 2. Check student enrollment and activity completion map if studentId is provided
   course.is_enrolled = false;
@@ -211,7 +235,7 @@ const getInstructorCourses = async (instructorId) => {
   const query = `
     SELECT 
       c.id, c.title, c.description, c.category, c.thumbnail_url, c.status, c.created_at,
-      c.max_capacity, c.enrollment_deadline, c.requires_enrollment_key,
+      c.max_capacity, c.enrollment_deadline, c.requires_enrollment_key, c.enrollment_key,
       (c.enrollment_key_hash IS NOT NULL) AS has_enrollment_key,
       COUNT(DISTINCT e.id)::int AS enrolled_students_count,
       COUNT(DISTINCT m.id)::int AS modules_count,
@@ -240,29 +264,33 @@ const createCourse = async ({
   status = 'published',
   max_capacity = 50,
   enrollment_deadline = null,
-  requires_enrollment_key = false,
+  requires_enrollment_key = true,
   enrollment_key = null
 }) => {
-  const isKeyRequired = requires_enrollment_key === true || requires_enrollment_key === 'true';
+  const isKeyRequired = requires_enrollment_key !== undefined 
+    ? (requires_enrollment_key === true || requires_enrollment_key === 'true') 
+    : true;
+
+  // Automatically generate unique secure key if not provided
+  let keyToUse = null;
   let enrollment_key_hash = null;
 
-  if (isKeyRequired) {
-    if (!enrollment_key || enrollment_key.trim().length < 6) {
-      const error = new Error('Enrollment key must contain at least 6 characters.');
-      error.statusCode = 400;
-      throw error;
-    }
-    enrollment_key_hash = await bcrypt.hash(enrollment_key.trim(), 10);
+  if (enrollment_key && typeof enrollment_key === 'string' && enrollment_key.trim()) {
+    keyToUse = enrollment_key.trim();
+  } else {
+    keyToUse = generateSecureEnrollmentKey();
   }
+
+  enrollment_key_hash = await bcrypt.hash(keyToUse, 10);
 
   const query = `
     INSERT INTO courses (
       title, description, instructor_id, category, thumbnail_url, status, 
-      max_capacity, enrollment_deadline, requires_enrollment_key, enrollment_key_hash
+      max_capacity, enrollment_deadline, requires_enrollment_key, enrollment_key, enrollment_key_hash
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     RETURNING id, title, description, instructor_id, category, thumbnail_url, status, 
-              max_capacity, enrollment_deadline, requires_enrollment_key, 
+              max_capacity, enrollment_deadline, requires_enrollment_key, enrollment_key,
               (enrollment_key_hash IS NOT NULL) AS has_enrollment_key, created_at;
   `;
   const result = await db.query(query, [
@@ -275,6 +303,7 @@ const createCourse = async ({
     parseInt(max_capacity, 10) || 50,
     enrollment_deadline || null,
     isKeyRequired,
+    keyToUse,
     enrollment_key_hash
   ]);
   return result.rows[0];
@@ -285,13 +314,13 @@ const updateCourse = async (courseId, instructorId, {
   description, 
   category, 
   thumbnail_url, 
-  status,
-  max_capacity,
+  status, 
+  max_capacity, 
   enrollment_deadline,
   requires_enrollment_key,
   enrollment_key
 }) => {
-  const check = await db.query('SELECT instructor_id, requires_enrollment_key, enrollment_key_hash FROM courses WHERE id = $1', [courseId]);
+  const check = await db.query('SELECT instructor_id, requires_enrollment_key, enrollment_key, enrollment_key_hash FROM courses WHERE id = $1', [courseId]);
   if (check.rows.length === 0) {
     const error = new Error('Course not found.');
     error.statusCode = 404;
@@ -304,33 +333,19 @@ const updateCourse = async (courseId, instructorId, {
   }
 
   let isKeyRequired = check.rows[0].requires_enrollment_key;
+  let currentKey = check.rows[0].enrollment_key;
   let keyHash = check.rows[0].enrollment_key_hash;
 
   if (requires_enrollment_key !== undefined) {
     isKeyRequired = requires_enrollment_key === true || requires_enrollment_key === 'true';
-    if (isKeyRequired) {
-      if (enrollment_key && enrollment_key.trim()) {
-        const trimmed = enrollment_key.trim();
-        if (trimmed.length < 6) {
-          const error = new Error('Enrollment key must contain at least 6 characters.');
-          error.statusCode = 400;
-          throw error;
-        }
-        keyHash = await bcrypt.hash(trimmed, 10);
-      } else if (!keyHash) {
-        const error = new Error('An enrollment key of at least 6 characters is required when enabling enrollment keys.');
-        error.statusCode = 400;
-        throw error;
-      }
-    }
-  } else if (enrollment_key && enrollment_key.trim()) {
-    const trimmed = enrollment_key.trim();
-    if (trimmed.length < 6) {
-      const error = new Error('Enrollment key must contain at least 6 characters.');
-      error.statusCode = 400;
-      throw error;
-    }
-    keyHash = await bcrypt.hash(trimmed, 10);
+  }
+
+  if (enrollment_key && typeof enrollment_key === 'string' && enrollment_key.trim()) {
+    currentKey = enrollment_key.trim();
+    keyHash = await bcrypt.hash(currentKey, 10);
+  } else if (!currentKey) {
+    currentKey = generateSecureEnrollmentKey();
+    keyHash = await bcrypt.hash(currentKey, 10);
   }
 
   const query = `
@@ -343,11 +358,12 @@ const updateCourse = async (courseId, instructorId, {
         max_capacity = COALESCE($6, max_capacity),
         enrollment_deadline = COALESCE($7, enrollment_deadline),
         requires_enrollment_key = COALESCE($8, requires_enrollment_key),
-        enrollment_key_hash = COALESCE($9, enrollment_key_hash),
+        enrollment_key = COALESCE($9, enrollment_key),
+        enrollment_key_hash = COALESCE($10, enrollment_key_hash),
         updated_at = CURRENT_TIMESTAMP
-    WHERE id = $10
+    WHERE id = $11
     RETURNING id, title, description, instructor_id, category, thumbnail_url, status, 
-              max_capacity, enrollment_deadline, requires_enrollment_key, 
+              max_capacity, enrollment_deadline, requires_enrollment_key, enrollment_key,
               (enrollment_key_hash IS NOT NULL) AS has_enrollment_key, created_at, updated_at;
   `;
   const result = await db.query(query, [
@@ -359,14 +375,15 @@ const updateCourse = async (courseId, instructorId, {
     max_capacity ? parseInt(max_capacity, 10) : null,
     enrollment_deadline,
     requires_enrollment_key !== undefined ? isKeyRequired : null,
-    (requires_enrollment_key !== undefined || enrollment_key) ? keyHash : null,
+    enrollment_key ? currentKey : null,
+    enrollment_key ? keyHash : null,
     courseId
   ]);
   return result.rows[0];
 };
 
 const updateEnrollmentSettings = async (courseId, instructorId, { requires_enrollment_key, enrollment_key }) => {
-  const check = await db.query('SELECT instructor_id, enrollment_key_hash FROM courses WHERE id = $1', [courseId]);
+  const check = await db.query('SELECT instructor_id, requires_enrollment_key, enrollment_key, enrollment_key_hash FROM courses WHERE id = $1', [courseId]);
   if (check.rows.length === 0) {
     const error = new Error('Course not found.');
     error.statusCode = 404;
@@ -378,35 +395,96 @@ const updateEnrollmentSettings = async (courseId, instructorId, { requires_enrol
     throw error;
   }
 
-  const isKeyRequired = requires_enrollment_key === true || requires_enrollment_key === 'true';
+  const isKeyRequired = requires_enrollment_key !== undefined 
+    ? (requires_enrollment_key === true || requires_enrollment_key === 'true')
+    : check.rows[0].requires_enrollment_key;
+
+  let currentKey = check.rows[0].enrollment_key;
   let keyHash = check.rows[0].enrollment_key_hash;
 
-  if (isKeyRequired) {
-    if (enrollment_key && enrollment_key.trim()) {
-      const trimmed = enrollment_key.trim();
-      if (trimmed.length < 6) {
-        const error = new Error('Enrollment key must contain at least 6 characters.');
-        error.statusCode = 400;
-        throw error;
-      }
-      keyHash = await bcrypt.hash(trimmed, 10);
-    } else if (!keyHash) {
-      const error = new Error('An enrollment key of at least 6 characters is required when enabling enrollment keys.');
-      error.statusCode = 400;
-      throw error;
-    }
+  if (enrollment_key && typeof enrollment_key === 'string' && enrollment_key.trim()) {
+    currentKey = enrollment_key.trim();
+    keyHash = await bcrypt.hash(currentKey, 10);
+  } else if (!currentKey) {
+    currentKey = generateSecureEnrollmentKey();
+    keyHash = await bcrypt.hash(currentKey, 10);
   }
 
   const query = `
     UPDATE courses 
     SET requires_enrollment_key = $1,
-        enrollment_key_hash = $2,
+        enrollment_key = $2,
+        enrollment_key_hash = $3,
         updated_at = CURRENT_TIMESTAMP
-    WHERE id = $3
-    RETURNING id, title, requires_enrollment_key, (enrollment_key_hash IS NOT NULL) AS has_enrollment_key, updated_at;
+    WHERE id = $4
+    RETURNING id, title, requires_enrollment_key, enrollment_key, (enrollment_key_hash IS NOT NULL) AS has_enrollment_key, updated_at;
   `;
-  const result = await db.query(query, [isKeyRequired, keyHash, courseId]);
+  const result = await db.query(query, [isKeyRequired, currentKey, keyHash, courseId]);
   return result.rows[0];
+};
+
+const getCourseEnrollmentKey = async (courseId, userId, userRole) => {
+  const check = await db.query('SELECT id, title, instructor_id, enrollment_key FROM courses WHERE id = $1', [courseId]);
+  if (check.rows.length === 0) {
+    const error = new Error('Course not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+  const course = check.rows[0];
+  if (userRole !== 'admin' && course.instructor_id !== userId) {
+    const error = new Error('Unauthorized to view enrollment key for this course.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  let key = course.enrollment_key;
+  if (!key) {
+    key = generateSecureEnrollmentKey();
+    const hash = await bcrypt.hash(key, 10);
+    await db.query('UPDATE courses SET enrollment_key = $1, enrollment_key_hash = $2 WHERE id = $3', [key, hash, courseId]);
+  }
+
+  return {
+    course_id: course.id,
+    title: course.title,
+    enrollment_key: key
+  };
+};
+
+const regenerateCourseEnrollmentKey = async (courseId, userId, userRole) => {
+  const check = await db.query('SELECT id, title, instructor_id FROM courses WHERE id = $1', [courseId]);
+  if (check.rows.length === 0) {
+    const error = new Error('Course not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+  const course = check.rows[0];
+  if (userRole !== 'admin' && course.instructor_id !== userId) {
+    const error = new Error('Unauthorized to regenerate enrollment key for this course.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const newKey = generateSecureEnrollmentKey();
+  const newHash = await bcrypt.hash(newKey, 10);
+
+  await db.query(
+    `UPDATE courses 
+     SET enrollment_key = $1, 
+         enrollment_key_hash = $2, 
+         requires_enrollment_key = TRUE,
+         updated_at = CURRENT_TIMESTAMP 
+     WHERE id = $3`,
+    [newKey, newHash, courseId]
+  );
+
+  return {
+    course_id: course.id,
+    title: course.title,
+    enrollment_key: newKey,
+    has_enrollment_key: true,
+    requires_enrollment_key: true
+  };
 };
 
 const deleteCourse = async (courseId, instructorId) => {
@@ -433,5 +511,7 @@ module.exports = {
   createCourse,
   updateCourse,
   updateEnrollmentSettings,
+  getCourseEnrollmentKey,
+  regenerateCourseEnrollmentKey,
   deleteCourse
 };

@@ -262,7 +262,7 @@ const CourseFormModal = ({ isOpen, onClose, onSubmit, initialData = null, loadin
                       setEnrollmentKey(e.target.value);
                       if (keyError) setKeyError('');
                     }}
-                    placeholder={hasExistingKey ? 'Enter new key to change (or leave empty)' : 'Min 6 characters (e.g. CS2026-KEY)'}
+                    placeholder={hasExistingKey ? 'Enter new key to change (or leave empty)' : 'Auto-generated if left empty (e.g. ELMS-A1B2-C3D4)'}
                     className="w-full pl-3 pr-20 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm font-medium bg-white"
                   />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -286,6 +286,9 @@ const CourseFormModal = ({ isOpen, onClose, onSubmit, initialData = null, loadin
                     )}
                   </div>
                 </div>
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  A unique, secure enrollment key is automatically generated if left empty.
+                </span>
               </div>
 
               {/* Generated Key One-Time Display Banner */}
@@ -308,9 +311,6 @@ const CourseFormModal = ({ isOpen, onClose, onSubmit, initialData = null, loadin
                   <div className="font-mono font-bold text-xs bg-white/90 p-1.5 rounded-md border border-amber-200 tracking-wider">
                     {generatedKey}
                   </div>
-                  <p className="text-[10px] text-amber-700">
-                    Copy this key now. It is hashed upon saving and cannot be viewed later.
-                  </p>
                 </div>
               )}
 

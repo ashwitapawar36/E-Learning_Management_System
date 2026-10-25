@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 260" width="100%" height="100%">
+  <defs>
+    <pattern id="slate-circles" width="120" height="120" patternUnits="userSpaceOnUse">
+      <circle cx="60" cy="60" r="50" fill="none" stroke="#78909c" stroke-width="14" opacity="0.65" />
+      <circle cx="0" cy="0" r="50" fill="none" stroke="#90a4ae" stroke-width="14" opacity="0.5" />
+      <circle cx="120" cy="0" r="50" fill="none" stroke="#90a4ae" stroke-width="14" opacity="0.5" />
+      <circle cx="0" cy="120" r="50" fill="none" stroke="#90a4ae" stroke-width="14" opacity="0.5" />
+      <circle cx="120" cy="120" r="50" fill="none" stroke="#90a4ae" stroke-width="14" opacity="0.5" />
+    </pattern>
+  </defs>
+  <rect width="800" height="260" fill="#b0bec5" />
+  <rect width="800" height="260" fill="url(#slate-circles)" />
+</svg>

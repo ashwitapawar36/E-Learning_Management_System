@@ -74,16 +74,6 @@ const Sidebar = ({ isOpen, onClose }) => {
               })}
             </nav>
           </div>
-
-          {/* Quick Info Box */}
-          <div className="p-3.5 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white shadow-md">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-bold text-brand-300 tracking-wider uppercase">Direct Postgres</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            </div>
-            <p className="text-xs font-bold text-white">ELMS Active Pool</p>
-            <p className="text-[11px] text-slate-300 mt-0.5">Direct pg client queries with ACID transactions</p>
-          </div>
         </div>
       </aside>
     </>

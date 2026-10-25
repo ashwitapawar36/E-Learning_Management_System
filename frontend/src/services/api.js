@@ -55,6 +55,8 @@ export const coursesAPI = {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   updateEnrollmentSettings: (id, data) => api.put(`/courses/${id}/enrollment-settings`, data),
+  getEnrollmentKey: (id) => api.get(`/courses/${id}/enrollment-key`),
+  regenerateEnrollmentKey: (id) => api.post(`/courses/${id}/regenerate-enrollment-key`),
   delete: (id) => api.delete(`/courses/${id}`)
 };
 

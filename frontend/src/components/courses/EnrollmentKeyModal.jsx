@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Lock, Eye, EyeOff, AlertCircle, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Lock, Eye, EyeOff, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 import { enrollmentsAPI } from '../../services/api';
@@ -9,6 +10,10 @@ const EnrollmentKeyModal = ({ isOpen, onClose, course, onSuccess }) => {
   const [showKey, setShowKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [alreadyEnrolled, setAlreadyEnrolled] = useState(false);
+
+  const navigate = useNavigate();
 
   if (!course) return null;
 
@@ -16,32 +21,41 @@ const EnrollmentKeyModal = ({ isOpen, onClose, course, onSuccess }) => {
     setEnrollmentKey('');
     setShowKey(false);
     setErrorMessage('');
+    setSuccessMessage('');
+    setAlreadyEnrolled(false);
     onClose();
   };
 
   const handleEnroll = async (e) => {
     e.preventDefault();
     if (!enrollmentKey.trim()) {
-      setErrorMessage('Incorrect enrollment key. Please check the key provided by your instructor and try again.');
+      setErrorMessage('Please enter the course enrollment key.');
       return;
     }
 
     try {
       setLoading(true);
       setErrorMessage('');
+      setSuccessMessage('');
+      setAlreadyEnrolled(false);
+
       const res = await enrollmentsAPI.enroll(course.id, enrollmentKey.trim());
       if (res.data.success) {
-        handleClose();
-        if (onSuccess) {
-          onSuccess(course.id);
-        }
+        setSuccessMessage('Enrollment successful! Redirecting to course...');
+        setTimeout(() => {
+          handleClose();
+          if (onSuccess) {
+            onSuccess(course.id);
+          }
+        }, 800);
       }
     } catch (err) {
-      const serverMsg = err.response?.data?.message;
-      if (serverMsg) {
-        setErrorMessage(serverMsg);
+      if (err.response?.status === 409) {
+        setAlreadyEnrolled(true);
+        setErrorMessage(err.response?.data?.message || 'You are already actively enrolled in this course.');
       } else {
-        setErrorMessage('Incorrect enrollment key. Please check the key provided by your instructor and try again.');
+        const serverMsg = err.response?.data?.message;
+        setErrorMessage(serverMsg || 'Incorrect enrollment key. Please check the key provided by your instructor and try again.');
       }
     } finally {
       setLoading(false);
@@ -76,11 +90,37 @@ const EnrollmentKeyModal = ({ isOpen, onClose, course, onSuccess }) => {
           </div>
         </div>
 
+        {/* Success Alert */}
+        {successMessage && (
+          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2.5 animate-fade-in">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+            <span className="leading-relaxed">{successMessage}</span>
+          </div>
+        )}
+
         {/* Error Alert */}
         {errorMessage && (
-          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-start gap-2.5 animate-shake">
-            <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-            <span className="leading-relaxed">{errorMessage}</span>
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex flex-col gap-2 animate-shake">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{errorMessage}</span>
+            </div>
+            {alreadyEnrolled && (
+              <div className="pt-2 border-t border-rose-200/60 flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  icon={ArrowRight}
+                  onClick={() => {
+                    handleClose();
+                    navigate(`/student/courses/${course.id}`);
+                  }}
+                >
+                  Go to Course
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -133,7 +173,7 @@ const EnrollmentKeyModal = ({ isOpen, onClose, course, onSuccess }) => {
             loading={loading}
             icon={Lock}
           >
-            Enroll
+            Submit / Enroll
           </Button>
         </div>
       </form>

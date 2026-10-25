@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 260" width="100%" height="100%">
+  <defs>
+    <pattern id="indigo-triangles" width="80" height="80" patternUnits="userSpaceOnUse">
+      <polygon points="0,0 80,0 40,40" fill="#3f51b5" />
+      <polygon points="0,0 40,40 0,80" fill="#303f9f" />
+      <polygon points="80,0 80,80 40,40" fill="#5c6bc0" />
+      <polygon points="0,80 80,80 40,40" fill="#7986cb" />
+    </pattern>
+    <linearGradient id="indigo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#283593" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#5c6bc0" stop-opacity="0.6" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="260" fill="#3949ab" />
+  <rect width="800" height="260" fill="url(#indigo-triangles)" opacity="0.85" />
+  <rect width="800" height="260" fill="url(#indigo-grad)" opacity="0.4" />
+</svg>

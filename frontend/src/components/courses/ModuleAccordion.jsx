@@ -29,6 +29,15 @@ const ModuleAccordion = ({
     return modules.length > 0 ? { [modules[0].id]: true } : {};
   });
 
+  const [expandedMaterialIds, setExpandedMaterialIds] = useState({});
+
+  const toggleMaterialContent = (matId) => {
+    setExpandedMaterialIds(prev => ({
+      ...prev,
+      [matId]: !prev[matId]
+    }));
+  };
+
   const toggleModule = (id) => {
     setExpandedModules(prev => ({
       ...prev,
@@ -154,9 +163,20 @@ const ModuleAccordion = ({
                                 {mat.title}
                               </span>
                               {mat.content && (
-                                <p className="text-slate-500 mt-1 line-clamp-2 bg-slate-50 p-2 rounded-lg border border-slate-100 font-mono text-[11px]">
-                                  {mat.content}
-                                </p>
+                                <div className="mt-1">
+                                  <p className={`text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100 font-sans text-xs leading-relaxed whitespace-pre-wrap ${expandedMaterialIds[mat.id] ? '' : 'line-clamp-2'}`}>
+                                    {mat.content}
+                                  </p>
+                                  {mat.content.length > 80 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleMaterialContent(mat.id)}
+                                      className="mt-1 text-[11px] font-semibold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1 cursor-pointer"
+                                    >
+                                      {expandedMaterialIds[mat.id] ? 'Show less' : 'Read full note'}
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </div>

@@ -17,32 +17,60 @@ const EnrollmentSettingsModal = ({
   isOpen, 
   onClose, 
   courseId, 
-  initialRequiresKey = false, 
+  initialRequiresKey = true, 
   initialHasKey = false,
+  initialKey = '',
   onSaved 
 }) => {
-  const [requiresKey, setRequiresKey] = useState(false);
+  const [requiresKey, setRequiresKey] = useState(true);
   const [enrollmentKey, setEnrollmentKey] = useState('');
   const [hasExistingKey, setHasExistingKey] = useState(false);
-  const [showKey, setShowKey] = useState(false);
+  const [showKey, setShowKey] = useState(true);
   const [generatedKey, setGeneratedKey] = useState('');
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
   useEffect(() => {
     if (isOpen) {
-      setRequiresKey(Boolean(initialRequiresKey));
-      setHasExistingKey(Boolean(initialHasKey));
-      setEnrollmentKey('');
-      setShowKey(false);
+      setRequiresKey(initialRequiresKey !== undefined ? Boolean(initialRequiresKey) : true);
+      setHasExistingKey(Boolean(initialHasKey || initialKey));
+      setEnrollmentKey(initialKey || '');
+      setShowKey(true);
       setGeneratedKey('');
       setCopied(false);
       setError('');
       setSuccessMsg('');
     }
-  }, [isOpen, initialRequiresKey, initialHasKey]);
+  }, [isOpen, initialRequiresKey, initialHasKey, initialKey]);
+
+  const handleBackendRegenerate = async () => {
+    try {
+      setRegenerating(true);
+      setError('');
+      const res = await coursesAPI.regenerateEnrollmentKey(courseId);
+      if (res.data.success) {
+        const newKey = res.data.data.enrollment_key;
+        setEnrollmentKey(newKey);
+        setRequiresKey(true);
+        setHasExistingKey(true);
+        setSuccessMsg('Key regenerated successfully!');
+        if (onSaved) {
+          onSaved({
+            requires_enrollment_key: true,
+            has_enrollment_key: true,
+            enrollment_key: newKey
+          });
+        }
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to regenerate key.');
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   const handleGenerateKey = () => {
     const newKey = generateRandomEnrollmentKey();
@@ -211,7 +239,7 @@ const EnrollmentSettingsModal = ({
                 </div>
               </div>
               <span className="text-[11px] text-slate-400 mt-1 block">
-                Minimum 6 characters. Keys are hashed securely with bcrypt.
+                Share this key with students so they can self-enroll in this course.
               </span>
             </div>
 
@@ -221,7 +249,7 @@ const EnrollmentSettingsModal = ({
                 <div className="flex items-center justify-between">
                   <span className="font-bold flex items-center gap-1 text-amber-800">
                     <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                    Newly Generated Key:
+                    Generated Key:
                   </span>
                   <button
                     type="button"
@@ -235,21 +263,31 @@ const EnrollmentSettingsModal = ({
                 <div className="font-mono font-bold text-sm bg-white/80 p-2 rounded-lg border border-amber-200/80 tracking-widest text-slate-900">
                   {generatedKey}
                 </div>
-                <p className="text-[10px] text-amber-700">
-                  Please copy this key now. Because keys are securely hashed in the database, it cannot be recovered in plaintext once saved.
-                </p>
               </div>
             )}
 
-            {/* Generate Key Button */}
-            <button
-              type="button"
-              onClick={handleGenerateKey}
-              className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-brand-200 bg-white text-xs font-semibold text-brand-700 hover:bg-brand-50 transition-colors shadow-2xs"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-brand-500" />
-              Generate Random Key
-            </button>
+            {/* Generate & Regenerate Buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleGenerateKey}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-brand-200 bg-white text-xs font-semibold text-brand-700 hover:bg-brand-50 transition-colors shadow-2xs"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-brand-500" />
+                Randomize Key
+              </button>
+              {courseId && (
+                <button
+                  type="button"
+                  onClick={handleBackendRegenerate}
+                  disabled={regenerating}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-amber-200 bg-amber-50/50 text-xs font-semibold text-amber-900 hover:bg-amber-100/60 transition-colors shadow-2xs"
+                >
+                  <Key className="w-3.5 h-3.5 text-amber-600" />
+                  {regenerating ? 'Regenerating...' : 'Regenerate Now'}
+                </button>
+              )}
+            </div>
           </div>
         )}
 

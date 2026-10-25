@@ -11,7 +11,10 @@ import {
   Clock, 
   Layers,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Key,
+  Copy,
+  Check
 } from 'lucide-react';
 import { coursesAPI } from '../../services/api';
 import Button from '../../components/common/Button';
@@ -26,6 +29,15 @@ const ManageCourses = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
+  const [copiedCourseId, setCopiedCourseId] = useState(null);
+
+  const handleCopyKey = (courseId, key) => {
+    if (key) {
+      navigator.clipboard.writeText(key);
+      setCopiedCourseId(courseId);
+      setTimeout(() => setCopiedCourseId(null), 2500);
+    }
+  };
 
   const fetchCourses = async () => {
     try {
@@ -183,6 +195,37 @@ const ManageCourses = () => {
                       </Link>
                     </div>
                   )}
+
+                  {/* Enrollment Key Box */}
+                  <div className="mt-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 flex items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Key className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Key:</span>
+                      <span className="font-mono font-bold text-slate-900 tracking-wider truncate">
+                        {course.enrollment_key || '—'}
+                      </span>
+                    </div>
+                    {course.enrollment_key && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopyKey(course.id, course.enrollment_key)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 transition-colors flex-shrink-0 shadow-2xs"
+                        title="Copy Enrollment Key"
+                      >
+                        {copiedCourseId === course.id ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span className="text-emerald-700">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3 text-slate-500" />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 

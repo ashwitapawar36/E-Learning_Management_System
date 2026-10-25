@@ -18,6 +18,8 @@ import {
   Link as LinkIcon,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
+  Eye,
   Menu,
   X,
   PanelLeftClose,
@@ -32,6 +34,7 @@ import { useAuth } from '../../hooks/useAuth';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import Modal from '../../components/common/Modal';
 import SubmissionModal from '../../components/assignments/SubmissionModal';
 import EnrollmentKeyModal from '../../components/courses/EnrollmentKeyModal';
 
@@ -52,6 +55,48 @@ const CourseViewStudent = () => {
   // Collapsed state for main stream sections
   const [collapsedSections, setCollapsedSections] = useState({});
 
+  // Full-content reading modal state for text materials
+  const [readingMaterial, setReadingMaterial] = useState(null);
+
+  // Inline expanded material items and assignments
+  const [expandedMaterialIds, setExpandedMaterialIds] = useState(new Set());
+  const [expandedAssignmentIds, setExpandedAssignmentIds] = useState(new Set());
+
+  const toggleExpandMaterial = (materialId) => {
+    setExpandedMaterialIds(prev => {
+      const next = new Set(prev);
+      if (next.has(materialId)) {
+        next.delete(materialId);
+      } else {
+        next.add(materialId);
+      }
+      return next;
+    });
+  };
+
+  const toggleExpandAssignment = (assignmentId) => {
+    setExpandedAssignmentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(assignmentId)) {
+        next.delete(assignmentId);
+      } else {
+        next.add(assignmentId);
+      }
+      return next;
+    });
+  };
+
+  const handleOpenMaterial = async (material) => {
+    if (material.file_url) {
+      handleAccessMaterial(material);
+    } else {
+      setReadingMaterial(material);
+      if (course?.is_enrolled && !material.completed) {
+        handleAccessMaterial(material);
+      }
+    }
+  };
+
   const fetchCourseData = async () => {
     try {
       setLoading(true);
@@ -71,21 +116,15 @@ const CourseViewStudent = () => {
   }, [id]);
 
   const handleEnroll = async () => {
-    if (course?.requires_enrollment_key) {
-      setIsKeyModalOpen(true);
+    if (!user) {
+      window.location.href = '/login';
       return;
     }
-    try {
-      setEnrolling(true);
-      const res = await enrollmentsAPI.enroll(id);
-      if (res.data.success) {
-        await fetchCourseData();
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || 'Error enrolling in course.');
-    } finally {
-      setEnrolling(false);
+    if (user.role === 'instructor') {
+      alert('Instructors cannot enroll as students.');
+      return;
     }
+    setIsKeyModalOpen(true);
   };
 
   /**
@@ -128,6 +167,9 @@ const CourseViewStudent = () => {
               progress_percentage: percentage
             };
           });
+
+          // Also sync open reader modal state if current reading material is this one
+          setReadingMaterial(prev => prev && prev.id === material.id ? { ...prev, completed: true } : prev);
         }
       }
 
@@ -567,70 +609,102 @@ const CourseViewStudent = () => {
                         ) : (
                           <>
                             {/* Materials */}
-                            {modMaterials.map(mat => (
-                              <div
-                                key={mat.id}
-                                id={`activity-material-${mat.id}`}
-                                className="p-4 sm:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 transition-colors"
-                              >
-                                <div className="flex items-start gap-3 flex-1 min-w-0">
-                                  <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 flex-shrink-0 mt-0.5">
-                                    {getActivityIcon('material', mat.material_type)}
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-sm font-semibold text-slate-900 hover:text-brand-600 transition-colors">
-                                        {mat.title}
-                                      </span>
-                                      <Badge variant="neutral" size="sm" className="capitalize">
-                                        {mat.material_type}
-                                      </Badge>
+                            {modMaterials.map(mat => {
+                              const isExpanded = expandedMaterialIds.has(mat.id);
+
+                              return (
+                                <div
+                                  key={mat.id}
+                                  id={`activity-material-${mat.id}`}
+                                  className="p-4 sm:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 transition-colors"
+                                >
+                                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                                    <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 flex-shrink-0 mt-0.5">
+                                      {getActivityIcon('material', mat.material_type)}
                                     </div>
-                                    {mat.content && (
-                                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                                        {mat.content}
-                                      </p>
-                                    )}
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenMaterial(mat)}
+                                          className="text-left text-sm font-semibold text-slate-900 hover:text-brand-600 transition-colors cursor-pointer group inline-flex items-center gap-1.5"
+                                        >
+                                          <span>{mat.title}</span>
+                                          <Eye className="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </button>
+                                        <Badge variant="neutral" size="sm" className="capitalize">
+                                          {mat.material_type}
+                                        </Badge>
+                                      </div>
+                                      {mat.content && (
+                                        <div className="mt-1">
+                                          <p className={`text-xs text-slate-600 leading-relaxed whitespace-pre-wrap ${isExpanded ? '' : 'line-clamp-2'}`}>
+                                            {mat.content}
+                                          </p>
+                                          {mat.content.length > 80 && (
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleExpandMaterial(mat.id);
+                                              }}
+                                              className="mt-1 text-[11px] font-semibold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1 cursor-pointer"
+                                            >
+                                              {isExpanded ? (
+                                                <>
+                                                  <ChevronUp className="w-3 h-3" /> Show less
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <ChevronDown className="w-3 h-3" /> Read more inline
+                                                </>
+                                              )}
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
 
-                                {/* Right: Completion indicator and access button */}
-                                <div className="flex items-center gap-3 sm:flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                                  {/* Moodle Completion Badge */}
-                                  <div>
-                                    {mat.completed ? (
-                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
-                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                        <span>Done</span>
-                                      </span>
+                                  {/* Right: Completion indicator and access button */}
+                                  <div className="flex items-center gap-3 sm:flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                                    {/* Moodle Completion Badge */}
+                                    <div>
+                                      {mat.completed ? (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                          <span>Done</span>
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                                          <Circle className="w-3.5 h-3.5 text-slate-400" />
+                                          <span>To do: View</span>
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Action button */}
+                                    {mat.file_url ? (
+                                      <button
+                                        onClick={() => handleAccessMaterial(mat)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold transition-colors cursor-pointer"
+                                      >
+                                        {mat.material_type === 'video' ? 'Watch Video' : mat.material_type === 'link' ? 'Open Link' : 'Open Resource'}
+                                        <ExternalLink className="w-3 h-3" />
+                                      </button>
                                     ) : (
-                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
-                                        <Circle className="w-3.5 h-3.5 text-slate-400" />
-                                        <span>To do: View</span>
-                                      </span>
+                                      <button
+                                        onClick={() => handleOpenMaterial(mat)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold transition-colors cursor-pointer"
+                                      >
+                                        <BookOpen className="w-3.5 h-3.5" />
+                                        <span>Read Full Note</span>
+                                      </button>
                                     )}
                                   </div>
-
-                                  {/* Action button */}
-                                  {mat.file_url ? (
-                                    <button
-                                      onClick={() => handleAccessMaterial(mat)}
-                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold transition-colors"
-                                    >
-                                      {mat.material_type === 'video' ? 'Watch Video' : mat.material_type === 'link' ? 'Open Link' : 'Open Resource'}
-                                      <ExternalLink className="w-3 h-3" />
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleAccessMaterial(mat)}
-                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors"
-                                    >
-                                      Mark as Read
-                                    </button>
-                                  )}
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
 
                             {/* Assignments */}
                             {modAssignments.map(a => {
@@ -660,9 +734,29 @@ const CourseViewStudent = () => {
                                           {a.max_points} pts
                                         </span>
                                       </div>
-                                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                                      <p className={`text-xs text-slate-500 mt-1 leading-relaxed ${expandedAssignmentIds.has(a.id) ? '' : 'line-clamp-2'}`}>
                                         {a.description}
                                       </p>
+                                      {a.description && a.description.length > 80 && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleExpandAssignment(a.id);
+                                          }}
+                                          className="mt-1 text-[11px] font-semibold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1 cursor-pointer"
+                                        >
+                                          {expandedAssignmentIds.has(a.id) ? (
+                                            <>
+                                              <ChevronUp className="w-3 h-3" /> Show less
+                                            </>
+                                          ) : (
+                                            <>
+                                              <ChevronDown className="w-3 h-3" /> Read more
+                                            </>
+                                          )}
+                                        </button>
+                                      )}
                                       <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-400">
                                         <Calendar className="w-3.5 h-3.5" />
                                         <span>Due: {dueDate.toLocaleDateString()} at {dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -762,9 +856,29 @@ const CourseViewStudent = () => {
                                   {a.max_points} pts
                                 </span>
                               </div>
-                              <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                              <p className={`text-xs text-slate-500 mt-1 leading-relaxed ${expandedAssignmentIds.has(a.id) ? '' : 'line-clamp-2'}`}>
                                 {a.description}
                               </p>
+                              {a.description && a.description.length > 80 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleExpandAssignment(a.id);
+                                  }}
+                                  className="mt-1 text-[11px] font-semibold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1 cursor-pointer"
+                                >
+                                  {expandedAssignmentIds.has(a.id) ? (
+                                    <>
+                                      <ChevronUp className="w-3 h-3" /> Show less
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ChevronDown className="w-3 h-3" /> Read more
+                                    </>
+                                  )}
+                                </button>
+                              )}
                               <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-400">
                                 <Calendar className="w-3.5 h-3.5" />
                                 <span>Due: {dueDate.toLocaleDateString()} at {dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -825,6 +939,91 @@ const CourseViewStudent = () => {
           assignment={submittingAssignment}
           loading={actionLoading}
         />
+      )}
+
+      {/* Learning Material Full Reader Modal */}
+      {readingMaterial && (
+        <Modal
+          isOpen={!!readingMaterial}
+          onClose={() => setReadingMaterial(null)}
+          title={readingMaterial.title}
+          maxWidth="max-w-2xl"
+        >
+          <div className="space-y-4">
+            {/* Header info */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Badge variant="brand" size="sm" className="capitalize">
+                  {readingMaterial.material_type || 'Reading Note'}
+                </Badge>
+                {readingMaterial.completed ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Completed
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                    <Circle className="w-3.5 h-3.5 text-slate-400" /> Reading
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-slate-400 font-medium">
+                {course?.title}
+              </span>
+            </div>
+
+            {/* Content view */}
+            <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-5 sm:p-6 text-slate-800 text-sm leading-relaxed whitespace-pre-wrap font-sans select-text">
+              {readingMaterial.content ? (
+                readingMaterial.content
+              ) : (
+                <p className="text-slate-400 italic">No additional text notes provided for this item.</p>
+              )}
+            </div>
+
+            {/* External link fallback if any */}
+            {readingMaterial.file_url && (
+              <div className="p-3 rounded-xl bg-brand-50/60 border border-brand-100 flex items-center justify-between">
+                <span className="text-xs text-brand-800 font-medium">External resource attached:</span>
+                <a
+                  href={readingMaterial.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800 underline"
+                >
+                  Open attached link <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-xs text-slate-400">
+                {readingMaterial.completed ? 'Marked as completed' : 'Viewing completes this activity'}
+              </span>
+              <div className="flex items-center gap-2">
+                {!readingMaterial.completed && course?.is_enrolled && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={CheckCircle2}
+                    onClick={() => {
+                      handleAccessMaterial(readingMaterial);
+                    }}
+                  >
+                    Mark as Done
+                  </Button>
+                )}
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setReadingMaterial(null)}
+                >
+                  Done Reading
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Course Self-Enrollment Key Modal */}

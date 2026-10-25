@@ -24,6 +24,7 @@ const CourseCatalog = () => {
   const [loading, setLoading] = useState(true);
   const [enrollingId, setEnrollingId] = useState(null);
   const [message, setMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [selectedCourseForEnrollment, setSelectedCourseForEnrollment] = useState(null);
 
   const { isAuthenticated, isStudent, isInstructor } = useAuth();
@@ -57,36 +58,28 @@ const CourseCatalog = () => {
   };
 
   const handleEnroll = async (target) => {
+    setErrorMessage('');
+    setMessage('');
+
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
     if (isInstructor) {
-      alert('Instructors cannot enroll as students.');
+      setErrorMessage('Instructors are not allowed to enroll in courses as students.');
       return;
     }
 
     const courseObj = typeof target === 'object' ? target : courses.find(c => c.id === target);
     if (!courseObj) return;
 
-    // Case A: Course requires enrollment key -> open key modal
-    if (courseObj.requires_enrollment_key) {
-      setSelectedCourseForEnrollment(courseObj);
+    if (courseObj.is_enrolled) {
+      navigate(`/student/courses/${courseObj.id}`);
       return;
     }
 
-    // Case B: Direct enrollment for open courses
-    try {
-      setEnrollingId(courseObj.id);
-      const res = await enrollmentsAPI.enroll(courseObj.id);
-      if (res.data.success) {
-        navigate(`/student/courses/${courseObj.id}`);
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || 'Error enrolling in course.');
-    } finally {
-      setEnrollingId(null);
-    }
+    // Open enrollment key modal for protected courses
+    setSelectedCourseForEnrollment(courseObj);
   };
 
   return (
@@ -108,9 +101,16 @@ const CourseCatalog = () => {
 
       {/* Success Notification Alert */}
       {message && (
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-fade-in">
-          <CheckCircle className="w-4 h-4 text-emerald-600" />
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-fade-in shadow-xs">
+          <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
           <span>{message}</span>
+        </div>
+      )}
+
+      {/* Error Notification Alert */}
+      {errorMessage && (
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2 animate-shake shadow-xs">
+          <span className="leading-relaxed">{errorMessage}</span>
         </div>
       )}
 

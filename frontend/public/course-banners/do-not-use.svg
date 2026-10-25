@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 260" width="100%" height="100%">
+  <defs>
+    <pattern id="teal-triangles" width="80" height="80" patternUnits="userSpaceOnUse">
+      <polygon points="0,0 80,0 40,40" fill="#26a69a" />
+      <polygon points="0,0 40,40 0,80" fill="#00897b" />
+      <polygon points="80,0 80,80 40,40" fill="#4db6ac" />
+      <polygon points="0,80 80,80 40,40" fill="#80cbc4" />
+    </pattern>
+  </defs>
+  <rect width="800" height="260" fill="#009688" />
+  <rect width="800" height="260" fill="url(#teal-triangles)" opacity="0.9" />
+</svg>

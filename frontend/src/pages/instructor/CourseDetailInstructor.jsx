@@ -15,7 +15,11 @@ import {
   Trash2,
   Edit,
   Key,
-  Lock
+  Lock,
+  Copy,
+  Check,
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   coursesAPI, 
@@ -44,6 +48,12 @@ const CourseDetailInstructor = () => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [actionLoading, setActionLoading] = useState(false);
 
+  // Enrollment Key states
+  const [copiedKey, setCopiedKey] = useState(false);
+  const [isRegenerateModalOpen, setIsRegenerateModalOpen] = useState(false);
+  const [regeneratingKey, setRegeneratingKey] = useState(false);
+  const [keyMessage, setKeyMessage] = useState('');
+
   // Modals state
   const [isEnrollmentSettingsOpen, setIsEnrollmentSettingsOpen] = useState(false);
   const [isModuleModalOpen, setIsModuleModalOpen] = useState(false);
@@ -52,6 +62,36 @@ const CourseDetailInstructor = () => {
   
   const [targetModuleForMaterial, setTargetModuleForMaterial] = useState(null);
   const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
+
+  const handleCopyKey = () => {
+    if (course?.enrollment_key) {
+      navigator.clipboard.writeText(course.enrollment_key);
+      setCopiedKey(true);
+      setTimeout(() => setCopiedKey(false), 2500);
+    }
+  };
+
+  const handleRegenerateKey = async () => {
+    try {
+      setRegeneratingKey(true);
+      const res = await coursesAPI.regenerateEnrollmentKey(id);
+      if (res.data.success) {
+        setCourse(prev => ({
+          ...prev,
+          enrollment_key: res.data.data.enrollment_key,
+          requires_enrollment_key: true,
+          has_enrollment_key: true
+        }));
+        setKeyMessage('Enrollment key regenerated successfully!');
+        setTimeout(() => setKeyMessage(''), 4000);
+        setIsRegenerateModalOpen(false);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to regenerate enrollment key.');
+    } finally {
+      setRegeneratingKey(false);
+    }
+  };
 
   const fetchCourseData = async () => {
     try {
@@ -235,6 +275,63 @@ const CourseDetailInstructor = () => {
             icon={Plus}
           >
             New Assignment
+          </Button>
+        </div>
+      </div>
+
+      {/* Key Feedback Toast */}
+      {keyMessage && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-fade-in shadow-xs">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+          <span>{keyMessage}</span>
+        </div>
+      )}
+
+      {/* Course Enrollment Key Card (Instructor View) */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-brand-500/5 to-indigo-500/10 border border-amber-200/80 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="p-3 bg-amber-500 text-white rounded-xl shadow-xs flex-shrink-0 mt-0.5 sm:mt-0">
+            <Key className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black uppercase tracking-wider text-amber-900">
+                Course Enrollment Key
+              </span>
+              <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                Share with students
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Students must enter this key to self-enroll in this course.
+            </p>
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              <code className="text-base sm:text-lg font-mono font-bold tracking-wider px-3.5 py-1 bg-white border border-amber-200/90 rounded-xl text-slate-900 shadow-2xs select-all">
+                {course.enrollment_key || 'No key generated'}
+              </code>
+              <button
+                type="button"
+                onClick={handleCopyKey}
+                disabled={!course.enrollment_key}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-200 hover:bg-amber-50 text-amber-900 text-xs font-bold rounded-xl transition-all shadow-2xs"
+                title="Copy Enrollment Key to Clipboard"
+              >
+                {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-amber-700" />}
+                {copiedKey ? <span className="text-emerald-700">Copied!</span> : <span>Copy Key</span>}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-end sm:self-center">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setIsRegenerateModalOpen(true)}
+            icon={RefreshCw}
+            className="border-amber-200/80 hover:bg-amber-50 text-amber-950 font-semibold"
+          >
+            Regenerate Key
           </Button>
         </div>
       </div>
@@ -541,15 +638,54 @@ const CourseDetailInstructor = () => {
         courseId={id}
         initialRequiresKey={course?.requires_enrollment_key}
         initialHasKey={course?.has_enrollment_key}
+        initialKey={course?.enrollment_key}
         onSaved={(updated) => {
           setCourse(prev => ({
             ...prev,
             requires_enrollment_key: updated.requires_enrollment_key,
-            has_enrollment_key: updated.has_enrollment_key
+            has_enrollment_key: updated.has_enrollment_key,
+            enrollment_key: updated.enrollment_key || prev.enrollment_key
           }));
           fetchCourseData();
         }}
       />
+
+      {/* Modal: Confirm Key Regeneration */}
+      <Modal
+        isOpen={isRegenerateModalOpen}
+        onClose={() => setIsRegenerateModalOpen(false)}
+        title="Regenerate Course Enrollment Key"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-950 mb-1">Are you sure you want to regenerate this key?</p>
+              <p className="text-amber-800 leading-relaxed">
+                Existing enrolled students will remain enrolled and keep full access. Any new students will need to enter the newly generated key to enroll.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <Button
+              variant="secondary"
+              onClick={() => setIsRegenerateModalOpen(false)}
+              disabled={regeneratingKey}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleRegenerateKey}
+              loading={regeneratingKey}
+              icon={RefreshCw}
+            >
+              Confirm & Regenerate
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

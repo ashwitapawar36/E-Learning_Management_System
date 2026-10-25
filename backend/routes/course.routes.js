@@ -14,6 +14,9 @@ router.get('/:id/progress', authenticate, courseController.getCourseProgress);
 // Instructor Course Management
 router.post('/', authenticate, authorize('instructor', 'admin'), upload.single('thumbnail'), courseController.createCourse);
 router.put('/:id', authenticate, authorize('instructor', 'admin'), upload.single('thumbnail'), courseController.updateCourse);
+router.get('/:id/enrollment-key', authenticate, authorize('instructor', 'admin'), courseController.getCourseEnrollmentKey);
+router.post('/:id/regenerate-enrollment-key', authenticate, authorize('instructor', 'admin'), courseController.regenerateCourseEnrollmentKey);
+router.put('/:id/regenerate-enrollment-key', authenticate, authorize('instructor', 'admin'), courseController.regenerateCourseEnrollmentKey);
 router.put('/:id/enrollment-settings', authenticate, authorize('instructor', 'admin'), courseController.updateEnrollmentSettings);
 router.delete('/:id', authenticate, authorize('instructor', 'admin'), courseController.deleteCourse);
 
